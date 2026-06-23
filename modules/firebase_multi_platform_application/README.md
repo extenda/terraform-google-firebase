@@ -1,34 +1,92 @@
 # Firebase Multi-Platform App
 
-This submodule provides a comprehensive bootstrap for a Firebase project, including API enablement, project initialization, and the creation of up to three platform-specific apps (Web, Apple, Android) within a single logical application group.
+This module provides a comprehensive bootstrap for a Firebase project, including project initialization and the creation of platform-specific apps (Web, Apple, Android).
+
+Two submodules are available depending on your use case:
+
+| Module                                    | Use when                                                                    |
+|-------------------------------------------|-----------------------------------------------------------------------------|
+| `firebase_multi_platform_application`     | You need **one logical app group** (one web + one Android + one Apple app)  |
+| `firebase_multi_platform_application/apps`| You need **multiple independent apps** within a single Firebase project     |
 
 ## Features
 
-- **Automated API Enablement**: Enables `firebase.googleapis.com`, `serviceusage.googleapis.com`, `cloudresourcemanager.googleapis.com`, and `identitytoolkit.googleapis.com`.
 - **Project Initialization**: Converts a standard Google Cloud project into a Firebase project.
 - **Multi-Platform App Creation**: Register Web, Android, and Apple apps simultaneously.
-- **Shared Branding**: Uses a single `display_name` across all apps for consistency.
 - **Secure Configuration Outputs**: Retrieves and outputs `google-services.json`, `GoogleService-Info.plist`, and Web SDK snippets as sensitive values.
+- **App Check support**: Outputs a structured `app_check_bundle` compatible with the Firebase App Check module.
 
-## Usage
+---
+
+## Usage: single app group
 
 ```hcl
 module "firebase_app" {
-  source       = "./modules/firebase_multi_platform_application"
-  project_id   = "my-project-id"
-  display_name = "My Awesome App"
+  source     = "./modules/firebase_multi_platform_application"
+  project_id = "my-project-id"
 
-  web_app = {}
-
-  android_app = {
-    package_name = "com.example.app"
-  }
-
-  apple_app = {
-    bundle_id = "com.example.app"
+  apps = {
+    web_app = {
+      display_name = "My App"
+    }
+    android_app = {
+      display_name = "My App"
+      package_name = "com.example_app.checkout"
+    }
+    apple_app = {
+      display_name = "My App"
+      bundle_id    = "com.example-app.checkout"
+    }
   }
 }
 ```
+
+## Usage: multiple apps (`apps/` wrapper)
+
+Use this wrapper when you need to register multiple independent apps in a single Terraform plan — for example, one app per brand or tenant within the same Firebase project.
+
+```hcl
+module "firebase_apps" {
+  source     = "./modules/firebase_multi_platform_application/apps"
+  project_id = "my-project-id"
+
+  apps = [
+    {
+      display_name = "Checkout app ISRG"
+      android = { package_name = "com.example_isrg.checkout" }
+      ios     = { bundle_id    = "com.example-isrg.checkout" }
+    },
+    {
+      display_name = "Checkout app ICA"
+      android = { package_name = "com.example_ica.checkout" }
+      ios     = { bundle_id    = "com.example-ica.checkout" }
+      web     = {}
+    },
+  ]
+}
+```
+
+### Platform naming conventions
+
+| Platform | Field          | Allowed characters                                  | Example                    |
+|----------|----------------|-----------------------------------------------------|----------------------------|
+| Android  | `package_name` | Letters, digits, underscores, dots. **No hyphens.** | `com.example_app.checkout` |
+| iOS      | `bundle_id`    | Letters, digits, hyphens, dots. **No underscores.** | `com.example-app.checkout` |
+
+Both constraints are enforced by input validations — an invalid format will fail at `plan` time with a clear error message.
+
+### Outputs (`apps/` wrapper)
+
+| Name               | Description                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `project_id`       | The project ID.                                                                                  |
+| `app_ids`          | Nested map of Firebase App IDs keyed by `display_name` then platform (`android`, `ios`, `web`).  |
+| `android_configs`  | Map of `google-services.json` contents keyed by `display_name` (sensitive).                      |
+| `apple_configs`    | Map of `GoogleService-Info.plist` contents keyed by `display_name` (sensitive).                  |
+| `web_configs`      | Map of Web SDK config snippets keyed by `display_name` (sensitive).                              |
+| `app_check_bundle` | Aggregated App Check bundle for all apps with App Check enabled.                                 |
+
+---
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
 ## Inputs
